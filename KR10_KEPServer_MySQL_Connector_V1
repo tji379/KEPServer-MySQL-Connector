@@ -1,0 +1,65 @@
+import mysql.connector
+from opcua import Client
+import time
+
+# Example of a URL for a KEPServerEX OPC UA server
+opc_url = "opc.tcp://123.456.789.10:49320"
+
+# MySQL Database Connection Info
+mysql_config = {
+    "host": "localhost",
+    "user": "root",
+    "password": "12345",
+    "database": "robot_data"
+}
+
+
+def write_to_mysql(data):
+    try:
+        conn = mysql.connector.connect(**mysql_config)
+        cursor = conn.cursor()
+        query = ("INSERT INTO kr10_data (axis1, axis2, axis3, axis4, axis5, axis6, powerSwitch) "
+                 "VALUES (%s, %s, %s, %s, %s, %s, %s)")
+        cursor.execute(query, data)
+        conn.commit()
+    except mysql.connector.Error as err:
+        print("MySQL Error: {}".format(err))
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def main():
+    client = Client(opc_url)
+    try:
+        client.connect()
+        print("Connected to OPC UA Server")
+
+        # Get the NodeId of the node, these values need to be determined based on your KEPServerEX configuration
+        # Adding nodes for axes (KR10 is used here as an example)
+        node_ids = [
+            "ns=2;s=Channel1.KR10_Sim.KUKA KR10 Robot.Status.Motion Axis1",
+            "ns=2;s=Channel1.KR10_Sim.KUKA KR10 Robot.Status.Motion Axis2",
+            "ns=2;s=Channel1.KR10_Sim.KUKA KR10 Robot.Status.Motion Axis3",
+            "ns=2;s=Channel1.KR10_Sim.KUKA KR10 Robot.Status.Motion Axis4",
+            "ns=2;s=Channel1.KR10_Sim.KUKA KR10 Robot.Status.Motion Axis5",
+            "ns=2;s=Channel1.KR10_Sim.KUKA KR10 Robot.Status.Motion Axis6",
+            "ns=2;s=Channel1.KR10_Sim.KUKA KR10 Robot.Status.power switch",
+        ]
+        nodes = [client.get_node(node_id) for node_id in node_ids]
+
+        while True:
+            data = [node.get_value() for node in nodes]
+            print("Data read from OPC UA Server:", data)
+            write_to_mysql(data)
+            time.sleep(1)  # Reading data at 1-second intervals
+
+    except Exception as e:
+        print("Failed to connect to OPC UA Server:", e)
+    finally:
+        client.disconnect()
+        print("Disconnected from OPC UA Server")
+
+
+if __name__ == "__main__":
+    main()
